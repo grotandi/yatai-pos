@@ -1,0 +1,686 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#1f2a37">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<title>屋台レジ</title>
+<style>
+:root{
+  --bg:#f3f4f6; --panel:#ffffff; --ink:#111827; --sub:#6b7280; --line:#e5e7eb;
+  --head:#1f2a37; --accent:#2563eb; --ok:#059669; --warn:#dc2626; --amber:#d97706;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;
+  display:flex;flex-direction:column;overflow:hidden;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+button{font:inherit;color:inherit;border:none;cursor:pointer;touch-action:manipulation}
+button:disabled{opacity:.35;cursor:default}
+input{font:inherit;user-select:text;-webkit-user-select:text}
+.hidden{display:none!important}
+
+/* header */
+header{background:var(--head);color:#fff;display:flex;align-items:center;gap:20px;padding:8px 14px;flex:0 0 auto}
+.brand{font-weight:800;font-size:20px;letter-spacing:.05em}
+.stat{display:flex;flex-direction:column;line-height:1.1}
+.stat span{font-size:12px;opacity:.7}
+.stat b{font-size:24px;font-variant-numeric:tabular-nums}
+.net{font-size:13px;padding:4px 10px;border-radius:999px}
+.net:empty{display:none}
+.net.ok{background:#065f46}.net.wait{background:#92400e}.net.off{background:#7f1d1d}
+.spacer{flex:1}
+.hbtn{background:#374151;color:#fff;padding:12px 18px;border-radius:10px;font-weight:700;font-size:16px}
+.hbtn.warn{background:#7f1d1d}
+
+/* home */
+#home{flex:1;display:flex;gap:12px;padding:12px;min-height:0}
+#products{flex:1.25;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:1fr 1fr;gap:12px;min-height:0}
+.prod{position:relative;background:var(--panel);border-radius:18px;border:4px solid var(--c);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;box-shadow:0 2px 0 rgba(0,0,0,.08)}
+.prod:active{transform:scale(.97);background:#fafafa}
+.prod::before{content:"";position:absolute;inset:0 0 auto 0;height:14px;background:var(--c);border-radius:12px 12px 0 0}
+.pname{font-size:clamp(20px,2.6vw,34px);font-weight:800;text-align:center;line-height:1.2}
+.pprice{font-size:clamp(16px,2vw,26px);color:var(--sub);font-variant-numeric:tabular-nums}
+.badge{position:absolute;top:18px;right:12px;background:var(--accent);color:#fff;font-weight:800;font-size:22px;
+  min-width:40px;height:40px;border-radius:20px;display:flex;align-items:center;justify-content:center;padding:0 8px}
+
+#register{flex:1;background:var(--panel);border-radius:18px;padding:12px;display:flex;flex-direction:column;gap:6px;min-height:0;min-width:340px}
+#cart{flex:1;overflow-y:auto;min-height:60px;border-bottom:1px solid var(--line)}
+.empty{color:var(--sub);text-align:center;padding:18px 0}
+.line{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed var(--line)}
+.lname{flex:1;font-weight:700;font-size:17px}
+.qb{width:44px;height:40px;border-radius:10px;background:#e5e7eb;font-size:22px;font-weight:800}
+.qty{min-width:28px;text-align:center;font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
+.lsub{min-width:80px;text-align:right;font-variant-numeric:tabular-nums}
+.sum{display:flex;justify-content:space-between;align-items:baseline;font-variant-numeric:tabular-nums}
+.sum div:first-child{font-size:16px;color:var(--sub)}
+.sum div:last-child{font-size:32px;font-weight:800}
+.sum.sub div:last-child{font-size:22px}
+#change.ok{color:var(--ok)} #change.short{color:var(--warn)}
+#keypad{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.key{height:clamp(40px,7vh,58px);border-radius:10px;background:#eef0f3;font-size:22px;font-weight:700}
+.key:active{background:#d1d5db}
+.key.quick{background:#dbeafe;color:#1e3a8a;font-size:18px}
+.key.clear{background:#fee2e2;color:#991b1b}
+.actions{display:flex;gap:8px}
+#btnClear{flex:1;height:64px;border-radius:12px;background:#e5e7eb;font-size:18px;font-weight:700}
+#btnPay{flex:2.4;height:64px;border-radius:12px;background:var(--ok);color:#fff;font-size:28px;font-weight:800}
+
+.ticket{display:flex;justify-content:space-between;align-items:center;background:#fef3c7;border-radius:10px;padding:4px 12px}
+.ticket span{font-size:15px;color:#92400e;font-weight:700}
+.ticket b{font-size:30px;font-weight:900;color:#92400e;font-variant-numeric:tabular-nums}
+.ticketbig{font-size:64px;font-weight:900;color:#92400e;font-variant-numeric:tabular-nums;line-height:1}
+.find{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.find input{width:200px;padding:10px;border:2px solid var(--line);border-radius:10px;font-size:18px}
+td.tk{font-size:20px;font-weight:900;color:#92400e}
+
+/* sub screens */
+.screen{flex:1;display:flex;flex-direction:column;min-height:0;padding:12px;gap:10px}
+.shead{display:flex;align-items:center;gap:14px}
+.shead h1{margin:0;font-size:24px}
+.back{background:var(--head);color:#fff;padding:12px 18px;border-radius:10px;font-weight:700}
+.logwrap{flex:1;display:flex;gap:12px;min-height:0}
+#dayList{width:220px;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+.day{background:var(--panel);border-radius:12px;padding:12px;text-align:left;border:3px solid transparent}
+.day.sel{border-color:var(--accent)}
+.day b{display:block;font-size:18px}
+.day span{color:var(--sub);font-variant-numeric:tabular-nums}
+#dayDetail{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+.card{background:var(--panel);border-radius:14px;padding:14px}
+.card h2{margin:0 0 10px;font-size:18px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--sub);font-weight:600;font-size:14px}
+td.r,th.r{text-align:right}
+tr.voided td{color:#9ca3af;text-decoration:line-through}
+tr.voided td:last-child{text-decoration:none}
+.tbtn{padding:8px 12px;border-radius:8px;background:#fee2e2;color:#991b1b;font-weight:700}
+.tbtn.restore{background:#e5e7eb;color:var(--ink)}
+.grand{font-size:22px;font-weight:800;text-align:right;margin-top:8px}
+
+.settings{flex:1;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-content:start}
+.settings input[type=text],.settings input[type=password],.settings input[type=number],.settings input[type=url]{
+  width:100%;padding:12px;border:2px solid var(--line);border-radius:10px;font-size:18px;margin-bottom:8px}
+.prow{display:flex;align-items:center;gap:10px}
+.prow label{flex:1;font-weight:700}
+.prow input{width:140px!important;text-align:right}
+.settings button,.filebtn{display:block;width:100%;padding:13px;border-radius:10px;background:#e5e7eb;font-weight:700;margin-bottom:8px;text-align:center;font-size:16px}
+.settings .row{display:flex;gap:8px}.settings .row button{flex:1}
+.primary{background:var(--accent)!important;color:#fff!important}
+.warn{background:var(--warn)!important;color:#fff!important}
+.filebtn input{display:none}
+.note{color:var(--sub);font-size:14px;margin:4px 0 0}
+
+/* modal */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:10}
+.box{background:#fff;border-radius:18px;padding:24px;min-width:380px;max-width:90vw;text-align:center}
+.box h2{margin:0 0 12px}
+.box input{width:100%;padding:14px;font-size:24px;border:2px solid var(--line);border-radius:10px;text-align:center}
+.err{color:var(--warn);min-height:1.2em}
+.mrow{display:flex;gap:10px;margin-top:12px}
+.mrow button{flex:1;padding:16px;border-radius:12px;background:#e5e7eb;font-size:18px;font-weight:700}
+.bigchange{font-size:72px;font-weight:900;color:var(--ok);font-variant-numeric:tabular-nums;margin:6px 0}
+.subline{color:var(--sub);font-size:18px;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">屋台レジ</div>
+  <div class="stat"><span>本日の売上</span><b id="todayTotal">¥0</b></div>
+  <div class="stat"><span>本日の会計数</span><b id="todayCount">0件</b></div>
+  <div class="net" id="netStatus"></div>
+  <div class="spacer"></div>
+  <button id="btnUndo" class="hbtn warn">直前の会計を取消</button>
+  <button id="btnLog" class="hbtn">ログ</button>
+  <button id="btnSetting" class="hbtn">設定</button>
+</header>
+
+<main id="home">
+  <section id="products"></section>
+  <section id="register">
+    <div id="cart"></div>
+    <button class="ticket" id="ticketBtn"><span>番号札（タップで変更）</span><b id="ticketNo">1</b></button>
+    <div class="sum"><div>合計</div><div id="total">¥0</div></div>
+    <div class="sum sub"><div>お預かり</div><div id="paid">—</div></div>
+    <div class="sum sub"><div id="changeLabel">おつり</div><div id="change">—</div></div>
+    <div id="keypad"></div>
+    <div class="actions"><button id="btnClear">クリア</button><button id="btnPay" disabled>会計</button></div>
+  </section>
+</main>
+
+<section id="logScreen" class="screen hidden">
+  <div class="shead"><button class="back">← レジに戻る</button><h1>ログ（日ごとの集計）</h1></div>
+  <div class="logwrap"><div id="dayList"></div><div id="dayDetail"></div></div>
+</section>
+
+<section id="settingScreen" class="screen hidden">
+  <div class="shead"><button class="back">← レジに戻る</button><h1>設定</h1></div>
+  <div class="settings">
+    <div class="card">
+      <h2>値段</h2>
+      <div id="priceForm"></div>
+      <button id="savePrices" class="primary">値段を保存</button>
+      <p class="note">保存後の会計から新しい値段になります。過去の記録は売れた時点の値段のまま残ります。</p>
+    </div>
+    <div class="card">
+      <h2>データ出力・保護</h2>
+      <button id="csvDl">CSVをダウンロード（全期間・商品ごと）</button>
+      <button id="csvDiscord">CSVをDiscordに送る</button>
+      <button id="bkDl">バックアップを保存（復元用）</button>
+      <label class="filebtn">バックアップから復元<input type="file" id="bkIn" accept=".json,application/json"></label>
+      <p class="note" id="storageInfo"></p>
+    </div>
+    <div class="card">
+      <h2>Discord連携（ウェブフック）</h2>
+      <input id="hookIn" type="url" placeholder="https://discord.com/api/webhooks/..." autocomplete="off">
+      <div class="row"><button id="hookSave" class="primary">保存</button><button id="hookTest">テスト送信</button></div>
+      <button id="queueClear">未送信の通知を破棄</button>
+      <p class="note" id="queueInfo"></p>
+      <p class="note">会計・取消のたびにチャンネルへ通知します。オフライン中は貯めておき、つながった時にまとめて送ります。</p>
+    </div>
+    <div class="card">
+      <h2>番号札</h2>
+      <div class="prow"><label for="ticketMaxIn">番号札の枚数（1〜この数で使い回し）</label><input id="ticketMaxIn" type="number" inputmode="numeric" min="1" max="9999">枚</div>
+      <button id="ticketMaxSave" class="primary">保存</button>
+      <p class="note">番号は日ごとに1から始まり、最後の番号の次は1に戻ります。レジ画面の番号札をタップすると、その会計の番号を手で変えられます。</p>
+    </div>
+    <div class="card">
+      <h2>パスワード変更</h2>
+      <input id="pw1" type="password" inputmode="numeric" placeholder="新しいパスワード" autocomplete="new-password">
+      <input id="pw2" type="password" inputmode="numeric" placeholder="もう一度入力" autocomplete="new-password">
+      <button id="pwSave" class="primary">変更</button>
+      <p class="note">初期パスワードは 1234 です。最初に変更してください。</p>
+    </div>
+    <div class="card">
+      <h2>売上記録の全削除</h2>
+      <p class="note">売上記録をすべて消します（値段・パスワード・Discord設定は残ります）。先にCSVとバックアップを保存してください。</p>
+      <button id="wipe" class="warn">売上記録を全削除</button>
+    </div>
+  </div>
+</section>
+
+<div id="modal" class="modal hidden"><div class="box" id="modalBox"></div></div>
+
+<script>
+'use strict';
+const KEY = 'yatai-pos-v1';
+const DEFAULT_NAMES = ['ポテト 塩', 'ポテト コンソメ', 'ポテト バター', 'ポテト のり', 'フランク'];
+const COLORS = ['#e9c46a', '#e76f51', '#f4a261', '#2a9d8f', '#b5443b'];
+
+const $ = id => document.getElementById(id);
+const yen = n => '¥' + Number(n).toLocaleString('ja-JP');
+const pad = n => String(n).padStart(2, '0');
+const dayKey = ts => { const d = new Date(ts); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+const hms = ts => { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+const stamp = () => { const d = new Date(); return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`; };
+const escHtml = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ---------- data ---------- */
+function blank() {
+  return { products: DEFAULT_NAMES.map(name => ({ name, price: 0 })), sales: [], seq: 0, pwHash: null, webhook: '', queue: [] };
+}
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY));
+    if (s && Array.isArray(s.products) && Array.isArray(s.sales)) return Object.assign(blank(), s);
+  } catch (e) {}
+  return blank();
+}
+let S = load();
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(S)); }
+  catch (e) { alert('保存に失敗しました：' + e.message); }
+}
+
+let cart = S.products.map(() => 0);
+let paidStr = '';
+let selectedDay = dayKey(Date.now());
+let storagePersisted = null;
+let ticketOverride = null;
+let logFilter = '';
+const ticketMax = () => S.ticketMax || 100;
+function nextTicket() {
+  if (ticketOverride) return ticketOverride;
+  const t = dayKey(Date.now());
+  const last = [...S.sales].reverse().find(s => dayKey(s.ts) === t && s.ticket);
+  return last ? (last.ticket % ticketMax()) + 1 : 1;
+}
+const tk = s => s.ticket ? `番号札${s.ticket}` : '番号札なし';
+
+const itemsText = items => items.map(x => `${x.name}×${x.qty}`).join('、');
+const todaySales = () => { const t = dayKey(Date.now()); return S.sales.filter(s => !s.voided && dayKey(s.ts) === t); };
+const todayTotal = () => todaySales().reduce((a, s) => a + s.total, 0);
+const cartTotal = () => cart.reduce((sum, q, i) => sum + q * S.products[i].price, 0);
+
+/* ---------- render: home ---------- */
+function renderHeader() {
+  const t = todaySales();
+  $('todayTotal').textContent = yen(t.reduce((a, s) => a + s.total, 0));
+  $('todayCount').textContent = t.length + '件';
+  renderNet();
+}
+function renderNet() {
+  const el = $('netStatus');
+  if (!S.webhook) { el.textContent = ''; el.className = 'net'; return; }
+  const q = S.queue.length;
+  if (!navigator.onLine) { el.textContent = `オフライン（Discord未送信 ${q}件）`; el.className = 'net off'; }
+  else if (q) { el.textContent = `Discord送信待ち ${q}件`; el.className = 'net wait'; }
+  else { el.textContent = 'Discord 送信済み'; el.className = 'net ok'; }
+  const qi = $('queueInfo'); if (qi) qi.textContent = `未送信の通知：${q}件`;
+}
+function renderProducts() {
+  $('products').innerHTML = S.products.map((p, i) => `
+    <button class="prod" data-i="${i}" style="--c:${COLORS[i % COLORS.length]}">
+      <span class="pname">${escHtml(p.name).replace(/ /g, '<br>')}</span>
+      <span class="pprice">${p.price > 0 ? yen(p.price) : '値段未設定'}</span>
+      ${cart[i] ? `<span class="badge">${cart[i]}</span>` : ''}
+    </button>`).join('');
+}
+function renderCart() {
+  const rows = cart.map((q, i) => q ? `
+    <div class="line">
+      <span class="lname">${escHtml(S.products[i].name)}</span>
+      <button class="qb" data-i="${i}" data-d="-1">−</button>
+      <span class="qty">${q}</span>
+      <button class="qb" data-i="${i}" data-d="1">＋</button>
+      <span class="lsub">${yen(q * S.products[i].price)}</span>
+    </div>` : '').join('');
+  $('cart').innerHTML = rows || '<div class="empty">商品ボタンを押してカートに入れてください</div>';
+
+  $('ticketNo').textContent = nextTicket();
+  const total = cartTotal();
+  const paid = Number(paidStr || 0);
+  $('total').textContent = yen(total);
+  $('paid').textContent = paidStr ? yen(paid) : '—';
+  const ch = $('change'), lab = $('changeLabel');
+  if (!paidStr || !total) { lab.textContent = 'おつり'; ch.textContent = '—'; ch.className = ''; }
+  else if (paid < total) { lab.textContent = '不足'; ch.textContent = yen(total - paid); ch.className = 'short'; }
+  else { lab.textContent = 'おつり'; ch.textContent = yen(paid - total); ch.className = 'ok'; }
+  $('btnPay').disabled = !(total > 0 && paidStr && paid >= total);
+}
+const KEYS = [
+  ['7'], ['8'], ['9'], ['ちょうど', 'quick'],
+  ['4'], ['5'], ['6'], ['1000', 'quick'],
+  ['1'], ['2'], ['3'], ['5000', 'quick'],
+  ['0'], ['00'], ['C', 'clear'], ['10000', 'quick'],
+];
+function renderKeypad() {
+  $('keypad').innerHTML = KEYS.map(([k, cls]) =>
+    `<button class="key ${cls || ''}" data-k="${k}">${/^\d{4,}$/.test(k) ? yen(k) : k}</button>`).join('');
+}
+function renderAll() { renderHeader(); renderProducts(); renderCart(); }
+
+/* ---------- events: home ---------- */
+$('products').addEventListener('click', e => {
+  const b = e.target.closest('.prod'); if (!b) return;
+  cart[+b.dataset.i]++; renderProducts(); renderCart();
+});
+$('cart').addEventListener('click', e => {
+  const b = e.target.closest('.qb'); if (!b) return;
+  const i = +b.dataset.i; cart[i] = Math.max(0, cart[i] + Number(b.dataset.d));
+  renderProducts(); renderCart();
+});
+$('keypad').addEventListener('click', e => {
+  const b = e.target.closest('.key'); if (!b) return;
+  const k = b.dataset.k;
+  if (k === 'C') paidStr = '';
+  else if (k === 'ちょうど') paidStr = cartTotal() ? String(cartTotal()) : '';
+  else if (/^\d{4,}$/.test(k)) paidStr = k;
+  else { const s = (paidStr + k).replace(/^0+/, ''); if (s.length > 6) return; paidStr = s; }
+  renderCart();
+});
+$('btnClear').onclick = () => {
+  if (cart.some(q => q) && !confirm('カートを空にしますか？')) return;
+  cart = S.products.map(() => 0); paidStr = ''; renderProducts(); renderCart();
+};
+$('btnPay').onclick = checkout;
+$('ticketBtn').onclick = async () => {
+  const v = await askNumber('この会計の番号札', nextTicket());
+  if (v == null) return;
+  ticketOverride = v; renderCart();
+};
+function askNumber(title, initial) {
+  return new Promise(res => {
+    openModal(`<h2>${title}</h2>
+      <input id="numIn" type="number" inputmode="numeric" min="1" value="${initial}">
+      <p class="err" id="numErr"></p>
+      <div class="mrow"><button id="numCancel">キャンセル</button><button id="numOk" class="primary">OK</button></div>`);
+    const inp = $('numIn'); setTimeout(() => { inp.focus(); inp.select(); }, 50);
+    const ok = () => {
+      const v = Math.floor(Number(inp.value));
+      if (!Number.isFinite(v) || v < 1) { $('numErr').textContent = '1以上の数字を入れてください'; return; }
+      closeModal(); res(v);
+    };
+    $('numOk').onclick = ok;
+    inp.onkeydown = e => { if (e.key === 'Enter') ok(); };
+    $('numCancel').onclick = () => { closeModal(); res(null); };
+  });
+}
+
+function checkout() {
+  const items = cart.map((qty, i) => ({ name: S.products[i].name, price: S.products[i].price, qty })).filter(x => x.qty > 0);
+  const total = items.reduce((a, x) => a + x.price * x.qty, 0);
+  const paid = Number(paidStr || 0);
+  if (!items.length || paid < total || total <= 0) return;
+  if (items.some(x => x.price <= 0) && !confirm('値段が未設定（0円）の商品が入っています。このまま会計しますか？')) return;
+
+  S.seq += 1;
+  const sale = { id: S.seq, ticket: nextTicket(), ts: Date.now(), items, total, paid, change: paid - total, voided: false };
+  S.sales.push(sale);
+  save();
+  cart = S.products.map(() => 0); paidStr = ''; ticketOverride = null;
+  renderAll();
+  enqueue(`🧾 番号札 ${sale.ticket}（会計#${sale.id} ${hms(sale.ts)}）\n${items.map(x => `${x.name}×${x.qty}　${yen(x.price * x.qty)}`).join('\n')}\n合計 ${yen(total)}／預かり ${yen(paid)}／おつり ${yen(sale.change)}\n本日累計 ${yen(todayTotal())}（${todaySales().length}件）`);
+
+  openModal(`
+    <div class="subline">番号札</div>
+    <div class="ticketbig">${sale.ticket}</div>
+    <div class="subline" style="margin-top:12px">合計 ${yen(total)}　お預かり ${yen(paid)}</div>
+    <h2 style="margin-top:10px">おつり</h2>
+    <div class="bigchange">${yen(sale.change)}</div>
+    <div class="mrow"><button class="primary" id="chOk">OK（次のお客さん）</button></div>`);
+  $('chOk').onclick = closeModal;
+}
+
+$('btnUndo').onclick = () => {
+  const s = [...S.sales].reverse().find(x => !x.voided);
+  if (!s) { alert('取り消せる会計がありません'); return; }
+  if (!confirm(`${tk(s)}（会計#${s.id} ${hms(s.ts)}）\n${itemsText(s.items)}\n合計 ${yen(s.total)}\n\nこの会計を取り消しますか？`)) return;
+  setVoid(s, true);
+};
+function setVoid(s, v) {
+  s.voided = v; save(); renderAll();
+  if (!$('logScreen').classList.contains('hidden')) renderLog();
+  enqueue(`${v ? '❌ 取消' : '↩️ 取消を戻す'} ${tk(s)}（会計#${s.id} ${hms(s.ts)}）${itemsText(s.items)}　${yen(s.total)}\n本日累計 ${yen(todayTotal())}（${todaySales().length}件）`);
+}
+
+/* ---------- screens ---------- */
+function show(id) {
+  ['home', 'logScreen', 'settingScreen'].forEach(x => $(x).classList.toggle('hidden', x !== id));
+}
+document.querySelectorAll('.back').forEach(b => b.onclick = () => { show('home'); renderAll(); });
+$('btnLog').onclick = () => { selectedDay = dayKey(Date.now()); logFilter = ''; renderLog(); show('logScreen'); };
+$('btnSetting').onclick = async () => { if (await askPassword()) { renderSettings(); show('settingScreen'); } };
+
+/* ---------- aggregate ---------- */
+function productOrder(name) { const i = S.products.findIndex(p => p.name === name); return i < 0 ? 99 : i; }
+function aggregate(sales) {
+  const m = new Map();
+  for (const s of sales) {
+    if (s.voided) continue;
+    for (const it of s.items) {
+      const k = it.name + '\u0000' + it.price;
+      const o = m.get(k) || { name: it.name, price: it.price, qty: 0 };
+      o.qty += it.qty; m.set(k, o);
+    }
+  }
+  return [...m.values()].sort((a, b) => productOrder(a.name) - productOrder(b.name) || a.price - b.price);
+}
+function salesByDay() {
+  const m = new Map();
+  for (const s of S.sales) { const k = dayKey(s.ts); if (!m.has(k)) m.set(k, []); m.get(k).push(s); }
+  return m;
+}
+
+/* ---------- log ---------- */
+function renderLog() {
+  const byDay = salesByDay();
+  const today = dayKey(Date.now());
+  if (!byDay.has(today)) byDay.set(today, []);
+  const days = [...byDay.keys()].sort().reverse();
+  if (!byDay.has(selectedDay)) selectedDay = today;
+
+  $('dayList').innerHTML = days.map(d => {
+    const t = byDay.get(d).filter(s => !s.voided).reduce((a, s) => a + s.total, 0);
+    return `<button class="day ${d === selectedDay ? 'sel' : ''}" data-d="${d}"><b>${d}${d === today ? '（今日）' : ''}</b><span>${yen(t)}</span></button>`;
+  }).join('');
+
+  const sales = byDay.get(selectedDay) || [];
+  const agg = aggregate(sales);
+  const valid = sales.filter(s => !s.voided);
+  const dayTotal = valid.reduce((a, s) => a + s.total, 0);
+  const voidCount = sales.length - valid.length;
+  const shown = [...sales].reverse().filter(s => !logFilter || String(s.ticket || '') === logFilter);
+
+  $('dayDetail').innerHTML = `
+    <div class="card">
+      <h2>${selectedDay} の商品別集計</h2>
+      ${agg.length ? `<table>
+        <tr><th>商品</th><th class="r">単価</th><th class="r">数量</th><th class="r">小計</th></tr>
+        ${agg.map(a => `<tr><td>${escHtml(a.name)}</td><td class="r">${yen(a.price)}</td><td class="r">${a.qty}</td><td class="r">${yen(a.price * a.qty)}</td></tr>`).join('')}
+      </table>` : '<p class="note">この日の売上はありません</p>'}
+      <div class="grand">日計 ${yen(dayTotal)}（${valid.length}件${voidCount ? `／取消 ${voidCount}件` : ''}）</div>
+    </div>
+    <div class="card">
+      <h2>会計の記録（新しい順）</h2>
+      <div class="find"><input id="logFind" type="text" inputmode="numeric" placeholder="番号札で探す" value="${escHtml(logFilter)}">${logFilter ? `<span>番号札 ${escHtml(logFilter)}：${shown.length}件</span>` : ''}</div>
+      ${shown.length ? `<table>
+        <tr><th>番号札</th><th>会計No.</th><th>時刻</th><th>内容</th><th class="r">合計</th><th class="r">預かり</th><th class="r">おつり</th><th></th></tr>
+        ${shown.map(s => `<tr class="${s.voided ? 'voided' : ''}">
+          <td class="tk">${s.ticket || '—'}</td><td>#${s.id}</td><td>${hms(s.ts)}</td><td>${escHtml(itemsText(s.items))}</td>
+          <td class="r">${yen(s.total)}</td><td class="r">${yen(s.paid)}</td><td class="r">${yen(s.change)}</td>
+          <td class="r">${s.voided
+            ? `<button class="tbtn restore" data-id="${s.id}" data-v="0">取消を戻す</button>`
+            : `<button class="tbtn" data-id="${s.id}" data-v="1">取消</button>`}</td>
+        </tr>`).join('')}
+      </table>` : '<p class="note">記録はありません</p>'}
+    </div>`;
+}
+$('dayDetail').addEventListener('input', e => {
+  if (e.target.id !== 'logFind') return;
+  logFilter = e.target.value.replace(/\D/g, '');
+  renderLog();
+  const f = $('logFind'); f.focus(); f.setSelectionRange(f.value.length, f.value.length);
+});
+$('dayList').addEventListener('click', e => {
+  const b = e.target.closest('.day'); if (!b) return;
+  selectedDay = b.dataset.d; renderLog();
+});
+$('dayDetail').addEventListener('click', e => {
+  const b = e.target.closest('.tbtn'); if (!b) return;
+  const s = S.sales.find(x => x.id === Number(b.dataset.id)); if (!s) return;
+  const v = b.dataset.v === '1';
+  if (!confirm(`${tk(s)}（会計#${s.id} ${hms(s.ts)}）${itemsText(s.items)}　${yen(s.total)}\n\n${v ? 'この会計を取り消しますか？' : '取り消しを戻して売上に含めますか？'}`)) return;
+  setVoid(s, v);
+});
+
+/* ---------- CSV / backup ---------- */
+function buildCSV() {
+  const q = v => { const s = String(v); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const lines = [['日付', '商品', '単価', '数量', '小計'].join(',')];
+  const byDay = salesByDay();
+  let gQty = 0, gSum = 0;
+  for (const d of [...byDay.keys()].sort()) {
+    const agg = aggregate(byDay.get(d));
+    if (!agg.length) continue;
+    let dQty = 0, dSum = 0;
+    for (const a of agg) {
+      lines.push([d, a.name, a.price, a.qty, a.price * a.qty].map(q).join(','));
+      dQty += a.qty; dSum += a.price * a.qty;
+    }
+    lines.push([d, '日計', '', dQty, dSum].map(q).join(','));
+    gQty += dQty; gSum += dSum;
+  }
+  lines.push(['全期間', '合計', '', gQty, gSum].map(q).join(','));
+  return '\uFEFF' + lines.join('\r\n') + '\r\n';
+}
+function download(name, blob) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+const csvBlob = () => new Blob([buildCSV()], { type: 'text/csv;charset=utf-8' });
+const backupBlob = () => new Blob([JSON.stringify({ app: 'yatai-pos', version: 1, exportedAt: new Date().toISOString(), data: S }, null, 1)], { type: 'application/json' });
+
+$('csvDl').onclick = () => download(`yatai_sales_${stamp()}.csv`, csvBlob());
+$('bkDl').onclick = () => download(`yatai_backup_${stamp()}.json`, backupBlob());
+$('csvDiscord').onclick = async () => {
+  if (!S.webhook) { alert('先にDiscordのウェブフックURLを保存してください'); return; }
+  if (!navigator.onLine) { alert('オフラインのため送れません'); return; }
+  try {
+    await postDiscord({ content: `📊 売上CSV（${new Date().toLocaleString('ja-JP')}時点）` }, { blob: csvBlob(), name: `yatai_sales_${stamp()}.csv` });
+    alert('DiscordにCSVを送りました');
+  } catch (e) { alert('送信に失敗しました：' + e.message); }
+};
+$('bkIn').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try {
+    const j = JSON.parse(await f.text());
+    const d = j && j.data;
+    if (!d || !Array.isArray(d.sales) || !Array.isArray(d.products)) throw new Error('形式が違います');
+    if (!confirm(`バックアップ（${j.exportedAt || '日時不明'}、会計${d.sales.length}件）で今のデータを上書きします。よろしいですか？`)) return;
+    S = Object.assign(blank(), d, { queue: [] });
+    save(); cart = S.products.map(() => 0); paidStr = '';
+    renderSettings(); renderAll();
+    alert('復元しました');
+  } catch (err) { alert('復元できませんでした：' + err.message); }
+};
+
+/* ---------- Discord ---------- */
+function enqueue(content) {
+  if (!S.webhook) return;
+  S.queue.push({ content: content.slice(0, 1900) });
+  if (S.queue.length > 500) S.queue.splice(0, S.queue.length - 500);
+  save(); renderNet(); flush();
+}
+async function postDiscord(payload, file) {
+  const fd = new FormData();
+  fd.append('payload_json', JSON.stringify(payload));
+  if (file) fd.append('files[0]', file.blob, file.name);
+  const r = await fetch(S.webhook, { method: 'POST', body: fd });
+  if (r.status === 429) {
+    const j = await r.json().catch(() => ({}));
+    const e = new Error('送信が多すぎます'); e.retry = ((j.retry_after || 2) * 1000) + 200; throw e;
+  }
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+}
+let flushing = false;
+async function flush() {
+  if (flushing || !S.webhook || !navigator.onLine || !S.queue.length) { renderNet(); return; }
+  flushing = true;
+  try {
+    while (S.queue.length && navigator.onLine) {
+      try {
+        await postDiscord({ content: S.queue[0].content });
+        S.queue.shift(); save(); renderNet();
+        await sleep(600);
+      } catch (e) {
+        if (e.retry) { await sleep(e.retry); continue; }
+        break;
+      }
+    }
+  } finally { flushing = false; renderNet(); }
+}
+window.addEventListener('online', () => { renderNet(); flush(); });
+window.addEventListener('offline', renderNet);
+setInterval(flush, 30000);
+
+/* ---------- settings ---------- */
+function renderSettings() {
+  $('priceForm').innerHTML = S.products.map((p, i) => `
+    <div class="prow"><label for="price${i}">${escHtml(p.name)}</label>
+    <input id="price${i}" type="number" inputmode="numeric" min="0" step="10" value="${p.price || ''}" placeholder="0">円</div>`).join('');
+  $('ticketMaxIn').value = ticketMax();
+  $('hookIn').value = S.webhook || '';
+  $('pw1').value = ''; $('pw2').value = '';
+  $('storageInfo').textContent = storagePersisted === true
+    ? 'データ保護：有効（容量不足などでブラウザが勝手に消すことはありません）'
+    : 'データ保護：未確認／無効。ホーム画面に追加して開くと有効になりやすいです。';
+  renderNet();
+}
+$('savePrices').onclick = () => {
+  const vals = S.products.map((_, i) => Math.floor(Number($('price' + i).value || 0)));
+  if (vals.some(v => !Number.isFinite(v) || v < 0)) { alert('値段は0以上の数字で入力してください'); return; }
+  vals.forEach((v, i) => S.products[i].price = v);
+  save(); renderAll(); alert('値段を保存しました');
+};
+$('ticketMaxSave').onclick = () => {
+  const v = Math.floor(Number($('ticketMaxIn').value));
+  if (!Number.isFinite(v) || v < 1) { alert('1以上の数字を入れてください'); return; }
+  S.ticketMax = v; ticketOverride = null; save(); renderAll(); alert('保存しました');
+};
+$('hookSave').onclick = () => {
+  const v = $('hookIn').value.trim();
+  if (v && !/^https:\/\/(discord|discordapp)\.com\/api\/webhooks\//.test(v)) { alert('DiscordのウェブフックURLを貼り付けてください'); return; }
+  S.webhook = v; save(); renderNet(); alert(v ? '保存しました' : 'Discord連携をオフにしました');
+  flush();
+};
+$('hookTest').onclick = async () => {
+  if (!S.webhook) { alert('先にURLを保存してください'); return; }
+  try { await postDiscord({ content: '✅ 屋台レジからのテスト送信です' }); alert('送信しました。Discordを確認してください。'); }
+  catch (e) { alert('送信に失敗しました：' + e.message + '\n（ネット接続とURLを確認してください）'); }
+};
+$('queueClear').onclick = () => {
+  if (!S.queue.length) { alert('未送信の通知はありません'); return; }
+  if (!confirm(`未送信の通知${S.queue.length}件を破棄しますか？（売上記録は消えません）`)) return;
+  S.queue = []; save(); renderNet();
+};
+$('pwSave').onclick = async () => {
+  const a = $('pw1').value, b = $('pw2').value;
+  if (a.length < 4) { alert('4文字以上にしてください'); return; }
+  if (a !== b) { alert('2回の入力が一致しません'); return; }
+  S.pwHash = await hashPw(a); save();
+  $('pw1').value = ''; $('pw2').value = '';
+  alert('パスワードを変更しました');
+};
+$('wipe').onclick = () => {
+  if (!confirm('売上記録をすべて削除しますか？')) return;
+  if (!confirm('CSVとバックアップは保存しましたか？')) return;
+  if (!confirm('本当に削除しますか？元に戻せません。')) return;
+  S.sales = []; S.seq = 0; ticketOverride = null; save(); renderAll(); alert('削除しました');
+};
+
+/* ---------- password ---------- */
+async function hashPw(pw) {
+  if (window.crypto && crypto.subtle) {
+    const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('yatai-pos:' + pw));
+    return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
+  }
+  return 'plain:' + pw;
+}
+async function checkPw(pw) { return S.pwHash ? (await hashPw(pw)) === S.pwHash : pw === '1234'; }
+function askPassword() {
+  return new Promise(res => {
+    openModal(`<h2>設定のパスワード</h2>
+      <input id="pwIn" type="password" inputmode="numeric" autocomplete="off">
+      <p class="err" id="pwErr"></p>
+      <div class="mrow"><button id="pwCancel">キャンセル</button><button id="pwOk" class="primary">OK</button></div>`);
+    const inp = $('pwIn'); setTimeout(() => inp.focus(), 50);
+    const ok = async () => {
+      if (await checkPw(inp.value)) { closeModal(); res(true); }
+      else { $('pwErr').textContent = 'パスワードが違います'; inp.value = ''; inp.focus(); }
+    };
+    $('pwOk').onclick = ok;
+    inp.onkeydown = e => { if (e.key === 'Enter') ok(); };
+    $('pwCancel').onclick = () => { closeModal(); res(false); };
+  });
+}
+
+/* ---------- modal ---------- */
+function openModal(html) { $('modalBox').innerHTML = html; $('modal').classList.remove('hidden'); }
+function closeModal() { $('modal').classList.add('hidden'); $('modalBox').innerHTML = ''; }
+
+/* ---------- init ---------- */
+async function initStorage() {
+  try {
+    if (navigator.storage && navigator.storage.persist) {
+      storagePersisted = (await navigator.storage.persisted()) || (await navigator.storage.persist());
+    }
+  } catch (e) {}
+}
+renderKeypad();
+renderAll();
+initStorage();
+flush();
+setInterval(renderHeader, 60000);
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
