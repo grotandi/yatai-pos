@@ -1,5 +1,5 @@
 // オフラインでも動くように、アプリのファイルを端末に保存しておく
-const CACHE = 'yatai-pos-v2';
+const CACHE = 'yatai-pos-v3';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

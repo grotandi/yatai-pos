@@ -76,6 +76,28 @@ header{background:var(--head);color:#fff;display:flex;align-items:center;gap:20p
 .find input{width:200px;padding:10px;border:2px solid var(--line);border-radius:10px;font-size:18px}
 td.tk{font-size:20px;font-weight:900;color:#92400e}
 
+/* stock */
+.stocks{display:flex;gap:8px}
+.schip{background:#374151;border-radius:10px;padding:4px 12px;line-height:1.1;display:flex;flex-direction:column}
+.schip span{font-size:12px;opacity:.75}
+.schip b{font-size:22px;font-variant-numeric:tabular-nums}
+.schip.low{background:#b45309}.schip.out{background:#b91c1c}
+.pstock{font-size:clamp(14px,1.6vw,20px);font-weight:700;color:#374151;background:#f3f4f6;border-radius:999px;padding:2px 12px;font-variant-numeric:tabular-nums}
+.pstock.low{background:#fef3c7;color:#92400e}
+.prod.out{opacity:.45;filter:grayscale(.8)}
+.prod.out .pstock{background:#fee2e2;color:#991b1b}
+#toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#111827;color:#fff;padding:14px 22px;border-radius:12px;font-size:18px;font-weight:700;z-index:20;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.on{opacity:1}
+.stockrow{border:2px solid var(--line);border-radius:12px;padding:10px;margin-bottom:10px}
+.stockrow .top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.stockrow .top b{font-size:20px}
+.stockrow .top span{font-size:18px;font-variant-numeric:tabular-nums}
+.stockrow .row{align-items:stretch}
+.stockrow .row input{flex:0 0 150px;width:150px!important;margin-bottom:0!important;text-align:right}
+.stockrow .row button{margin-bottom:0;white-space:nowrap;padding:12px 8px}
+.settings select{font:inherit;font-size:16px;padding:8px;border:2px solid var(--line);border-radius:8px;background:#fff}
+.span2{grid-column:1 / -1}
+
 /* sub screens */
 .screen{flex:1;display:flex;flex-direction:column;min-height:0;padding:12px;gap:10px}
 .shead{display:flex;align-items:center;gap:14px}
@@ -130,6 +152,7 @@ tr.voided td:last-child{text-decoration:none}
   <div class="brand">屋台レジ</div>
   <div class="stat"><span>本日の売上</span><b id="todayTotal">¥0</b></div>
   <div class="stat"><span>本日の会計数</span><b id="todayCount">0件</b></div>
+  <div class="stocks" id="stockChips"></div>
   <div class="net" id="netStatus"></div>
   <div class="spacer"></div>
   <button id="btnUndo" class="hbtn warn">直前の会計を取消</button>
@@ -158,6 +181,15 @@ tr.voided td:last-child{text-decoration:none}
 <section id="settingScreen" class="screen hidden">
   <div class="shead"><button class="back">← レジに戻る</button><h1>設定</h1></div>
   <div class="settings">
+    <div class="card span2">
+      <h2>在庫</h2>
+      <div id="stockForm"></div>
+      <div class="prow"><label for="stockWarn">「残りわずか」表示（この数以下で黄色）</label><input id="stockWarn" type="number" inputmode="numeric" min="0">個</div>
+      <h2 style="margin-top:14px">どの在庫から減らすか</h2>
+      <div id="stockMap"></div>
+      <button id="stockMapSave" class="primary" style="margin-top:8px">保存</button>
+      <p class="note">1個売れるごとに、選んだ在庫が1減ります（ポテトは4種類で共通の在庫）。取り消した会計の分は自動で戻ります。在庫を入れていない（管理しない）品目は数の制限なしで売れます。</p>
+    </div>
     <div class="card">
       <h2>値段</h2>
       <div id="priceForm"></div>
@@ -201,6 +233,7 @@ tr.voided td:last-child{text-decoration:none}
   </div>
 </section>
 
+<div id="toast"></div>
 <div id="modal" class="modal hidden"><div class="box" id="modalBox"></div></div>
 
 <script>
@@ -219,13 +252,22 @@ const escHtml = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 /* ---------- data ---------- */
+const DEFAULT_STOCKS = ['ポテト', 'フランク'];
+const defaultStockOf = name => name.startsWith('ポテト') ? 0 : name.startsWith('フランク') ? 1 : -1;
 function blank() {
-  return { products: DEFAULT_NAMES.map(name => ({ name, price: 0 })), sales: [], seq: 0, pwHash: null, webhook: '', queue: [] };
+  return { products: DEFAULT_NAMES.map(name => ({ name, price: 0, stock: defaultStockOf(name) })), sales: [], seq: 0, pwHash: null, webhook: '', queue: [],
+    stocks: DEFAULT_STOCKS.map(name => ({ name, qty: null, base: 0 })), stockWarn: 10 };
+}
+function normalize(d) {
+  const o = Object.assign(blank(), d);
+  if (!Array.isArray(o.stocks) || !o.stocks.length) o.stocks = blank().stocks;
+  o.products.forEach(p => { if (typeof p.stock !== 'number') p.stock = defaultStockOf(p.name); });
+  return o;
 }
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(KEY));
-    if (s && Array.isArray(s.products) && Array.isArray(s.sales)) return Object.assign(blank(), s);
+    if (s && Array.isArray(s.products) && Array.isArray(s.sales)) return normalize(s);
   } catch (e) {}
   return blank();
 }
@@ -255,8 +297,55 @@ const todaySales = () => { const t = dayKey(Date.now()); return S.sales.filter(s
 const todayTotal = () => todaySales().reduce((a, s) => a + s.total, 0);
 const cartTotal = () => cart.reduce((sum, q, i) => sum + q * S.products[i].price, 0);
 
+/* ---------- stock ---------- */
+function itemStock(it) {
+  if (typeof it.stock === 'number') return it.stock;
+  const p = S.products.find(x => x.name === it.name);
+  return p ? p.stock : -1;
+}
+function remaining(j) {
+  const st = S.stocks[j];
+  if (!st || st.qty == null) return null;
+  let used = 0;
+  for (const s of S.sales) {
+    if (s.voided || s.ts < st.base) continue;
+    for (const it of s.items) if (itemStock(it) === j) used += it.qty;
+  }
+  return st.qty - used;
+}
+const cartUse = j => cart.reduce((a, q, i) => a + (S.products[i].stock === j ? q : 0), 0);
+function avail(i) {
+  const j = S.products[i].stock;
+  const r = j >= 0 ? remaining(j) : null;
+  return r == null ? Infinity : r - cartUse(j);
+}
+const stockLevel = r => r <= 0 ? 'out' : r <= (S.stockWarn ?? 10) ? 'low' : '';
+function stockSummary() {
+  return S.stocks.map((st, j) => { const r = remaining(j); return r == null ? null : `${st.name} 残り${r}`; }).filter(Boolean).join('／');
+}
+function renderStockChips() {
+  $('stockChips').innerHTML = S.stocks.map((st, j) => {
+    const r = remaining(j); if (r == null) return '';
+    return `<div class="schip ${stockLevel(r)}"><span>${escHtml(st.name)} 残り</span><b>${r <= 0 ? '売切' : r}</b></div>`;
+  }).join('');
+}
+let toastTimer = null;
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 1800);
+}
+function tryAdd(i) {
+  if (avail(i) <= 0) {
+    const st = S.stocks[S.products[i].stock];
+    toast(remaining(S.products[i].stock) <= 0 ? `${st.name}は売り切れです` : `${st.name}の残りはカートに入っている分で全部です`);
+    return false;
+  }
+  cart[i]++; return true;
+}
+
 /* ---------- render: home ---------- */
 function renderHeader() {
+  renderStockChips();
   const t = todaySales();
   $('todayTotal').textContent = yen(t.reduce((a, s) => a + s.total, 0));
   $('todayCount').textContent = t.length + '件';
@@ -276,8 +365,10 @@ function renderProducts() {
     <button class="prod" data-i="${i}" style="--c:${COLORS[i % COLORS.length]}">
       <span class="pname">${escHtml(p.name).replace(/ /g, '<br>')}</span>
       <span class="pprice">${p.price > 0 ? yen(p.price) : '値段未設定'}</span>
+      ${stockTag(i)}
       ${cart[i] ? `<span class="badge">${cart[i]}</span>` : ''}
     </button>`).join('');
+  S.products.forEach((p, i) => { const b = $('products').children[i]; if (b && avail(i) <= 0) b.classList.add('out'); });
 }
 function renderCart() {
   const rows = cart.map((q, i) => q ? `
@@ -311,16 +402,23 @@ function renderKeypad() {
   $('keypad').innerHTML = KEYS.map(([k, cls]) =>
     `<button class="key ${cls || ''}" data-k="${k}">${/^\d{4,}$/.test(k) ? yen(k) : k}</button>`).join('');
 }
+function stockTag(i) {
+  const j = S.products[i].stock; const r = j >= 0 ? remaining(j) : null;
+  if (r == null) return '';
+  const a = r - cartUse(j);
+  return `<span class="pstock ${stockLevel(a)}">${r <= 0 ? '売り切れ' : `残り ${Math.max(0, a)}`}</span>`;
+}
 function renderAll() { renderHeader(); renderProducts(); renderCart(); }
 
 /* ---------- events: home ---------- */
 $('products').addEventListener('click', e => {
   const b = e.target.closest('.prod'); if (!b) return;
-  cart[+b.dataset.i]++; renderProducts(); renderCart();
+  tryAdd(+b.dataset.i); renderProducts(); renderCart();
 });
 $('cart').addEventListener('click', e => {
   const b = e.target.closest('.qb'); if (!b) return;
-  const i = +b.dataset.i; cart[i] = Math.max(0, cart[i] + Number(b.dataset.d));
+  const i = +b.dataset.i;
+  if (Number(b.dataset.d) > 0) tryAdd(i); else cart[i] = Math.max(0, cart[i] - 1);
   renderProducts(); renderCart();
 });
 $('keypad').addEventListener('click', e => {
@@ -366,6 +464,10 @@ function checkout() {
   const paid = Number(paidStr || 0);
   if (!items.length || paid < total || total <= 0) return;
   if (items.some(x => x.price <= 0) && !confirm('値段が未設定（0円）の商品が入っています。このまま会計しますか？')) return;
+  const short = S.stocks.map((st, j) => ({ st, r: remaining(j), u: cartUse(j) })).filter(x => x.r != null && x.u > x.r);
+  if (short.length) { alert(short.map(x => `${x.st.name}：残り${Math.max(0, x.r)}個に対してカートに${x.u}個`).join('\n') + '\n\n在庫が足りません。カートを減らしてください。'); return; }
+  const before = S.stocks.map((_, j) => remaining(j));
+  items.forEach(it => { it.stock = S.products.find(p => p.name === it.name)?.stock ?? -1; });
 
   S.seq += 1;
   const sale = { id: S.seq, ticket: nextTicket(), ts: Date.now(), items, total, paid, change: paid - total, voided: false };
@@ -373,7 +475,15 @@ function checkout() {
   save();
   cart = S.products.map(() => 0); paidStr = ''; ticketOverride = null;
   renderAll();
-  enqueue(`🧾 番号札 ${sale.ticket}（会計#${sale.id} ${hms(sale.ts)}）\n${items.map(x => `${x.name}×${x.qty}　${yen(x.price * x.qty)}`).join('\n')}\n合計 ${yen(total)}／預かり ${yen(paid)}／おつり ${yen(sale.change)}\n本日累計 ${yen(todayTotal())}（${todaySales().length}件）`);
+  const sum = stockSummary();
+  const alerts = S.stocks.map((st, j) => {
+    const b = before[j], a = remaining(j); if (a == null) return '';
+    const w = S.stockWarn ?? 10;
+    if (a <= 0 && b > 0) return `\n🚫 ${st.name} 売り切れ`;
+    if (a <= w && b > w) return `\n⚠️ ${st.name} 残りわずか（${a}）`;
+    return '';
+  }).join('');
+  enqueue(`🧾 番号札 ${sale.ticket}（会計#${sale.id} ${hms(sale.ts)}）\n${items.map(x => `${x.name}×${x.qty}　${yen(x.price * x.qty)}`).join('\n')}\n合計 ${yen(total)}／預かり ${yen(paid)}／おつり ${yen(sale.change)}\n本日累計 ${yen(todayTotal())}（${todaySales().length}件）${sum ? `\n在庫 ${sum}` : ''}${alerts}`);
 
   openModal(`
     <div class="subline">番号札</div>
@@ -394,7 +504,8 @@ $('btnUndo').onclick = () => {
 function setVoid(s, v) {
   s.voided = v; save(); renderAll();
   if (!$('logScreen').classList.contains('hidden')) renderLog();
-  enqueue(`${v ? '❌ 取消' : '↩️ 取消を戻す'} ${tk(s)}（会計#${s.id} ${hms(s.ts)}）${itemsText(s.items)}　${yen(s.total)}\n本日累計 ${yen(todayTotal())}（${todaySales().length}件）`);
+  const sum = stockSummary();
+  enqueue(`${v ? '❌ 取消' : '↩️ 取消を戻す'} ${tk(s)}（会計#${s.id} ${hms(s.ts)}）${itemsText(s.items)}　${yen(s.total)}\n本日累計 ${yen(todayTotal())}（${todaySales().length}件）${sum ? `\n在庫 ${sum}` : ''}`);
 }
 
 /* ---------- screens ---------- */
@@ -534,7 +645,7 @@ $('bkIn').onchange = async e => {
     const d = j && j.data;
     if (!d || !Array.isArray(d.sales) || !Array.isArray(d.products)) throw new Error('形式が違います');
     if (!confirm(`バックアップ（${j.exportedAt || '日時不明'}、会計${d.sales.length}件）で今のデータを上書きします。よろしいですか？`)) return;
-    S = Object.assign(blank(), d, { queue: [] });
+    S = normalize(Object.assign({}, d, { queue: [] }));
     save(); cart = S.products.map(() => 0); paidStr = '';
     renderSettings(); renderAll();
     alert('復元しました');
@@ -581,7 +692,60 @@ window.addEventListener('offline', renderNet);
 setInterval(flush, 30000);
 
 /* ---------- settings ---------- */
+function renderStockForm() {
+  $('stockForm').innerHTML = S.stocks.map((st, j) => {
+    const r = remaining(j);
+    return `<div class="stockrow">
+      <div class="top"><b>${escHtml(st.name)}</b><span>${r == null ? '管理しない（数の制限なし）' : `いまの残り：<b>${r}</b>個`}</span></div>
+      <div class="row"><input id="stockIn${j}" type="number" inputmode="numeric" min="0" placeholder="個数">
+        <button class="primary" data-act="set" data-j="${j}">残りをこの数にする</button>
+        <button data-act="add" data-j="${j}">この数を追加</button>
+        <button data-act="off" data-j="${j}">管理しない</button></div>
+    </div>`;
+  }).join('');
+  $('stockWarn').value = S.stockWarn ?? 10;
+  $('stockMap').innerHTML = S.products.map((p, i) => `
+    <div class="prow" style="margin-bottom:6px"><label for="smap${i}">${escHtml(p.name)}</label>
+    <select id="smap${i}">${S.stocks.map((st, j) => `<option value="${j}" ${p.stock === j ? 'selected' : ''}>${escHtml(st.name)}の在庫</option>`).join('')}
+    <option value="-1" ${p.stock < 0 ? 'selected' : ''}>在庫を減らさない</option></select></div>`).join('');
+}
+$('stockForm').addEventListener('click', e => {
+  const b = e.target.closest('button[data-act]'); if (!b) return;
+  const j = +b.dataset.j, st = S.stocks[j], act = b.dataset.act;
+  const before = remaining(j);
+  if (act === 'off') {
+    if (!confirm(`${st.name}の在庫管理をやめますか？（数の制限なしで売れるようになります）`)) return;
+    st.qty = null; st.base = 0;
+    enqueue(`📦 ${st.name}：在庫管理をオフにしました`);
+  } else {
+    const v = Math.floor(Number($('stockIn' + j).value));
+    if ($('stockIn' + j).value === '' || !Number.isFinite(v) || v < 0) { alert('0以上の個数を入れてください'); return; }
+    if (act === 'set') {
+      if (!confirm(`${st.name}の残りを ${v}個 にしますか？`)) return;
+      st.qty = v; st.base = Date.now();
+      enqueue(`📦 ${st.name}：残りを ${v}個 に設定`);
+    } else {
+      if (before == null) { alert('先に「残りをこの数にする」で在庫を入れてください'); return; }
+      if (v === 0) return;
+      st.qty += v;
+      enqueue(`📦 ${st.name}：${v}個 追加 → 残り ${remaining(j)}個`);
+    }
+  }
+  save(); renderStockForm(); renderAll();
+});
+$('stockWarn').onchange = () => {
+  const v = Math.floor(Number($('stockWarn').value));
+  if (!Number.isFinite(v) || v < 0) { $('stockWarn').value = S.stockWarn ?? 10; return; }
+  S.stockWarn = v; save(); renderAll();
+};
+$('stockMapSave').onclick = () => {
+  S.products.forEach((p, i) => p.stock = Number($('smap' + i).value));
+  const w = Math.floor(Number($('stockWarn').value));
+  if (Number.isFinite(w) && w >= 0) S.stockWarn = w;
+  save(); renderStockForm(); renderAll(); alert('保存しました');
+};
 function renderSettings() {
+  renderStockForm();
   $('priceForm').innerHTML = S.products.map((p, i) => `
     <div class="prow"><label for="price${i}">${escHtml(p.name)}</label>
     <input id="price${i}" type="number" inputmode="numeric" min="0" step="10" value="${p.price || ''}" placeholder="0">円</div>`).join('');
